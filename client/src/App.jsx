@@ -17,6 +17,7 @@ export default function App() {
   const [isAdminLogin, setIsAdminLogin] = useState(false);
   const [adminUser, setAdminUser] = useState("");
   const [adminPass, setAdminPass] = useState("");
+  const [adminError, setAdminError] = useState("");
 
   useEffect(() => {
     socket.on("connect", () => setConnected(true));
@@ -69,23 +70,70 @@ export default function App() {
     alert("Налаштування груп збережено!");
   };
 
-  const containerStyle = { padding: 16, margin: "0 auto", maxWidth: 700, fontFamily: "Inter, sans-serif" };
-  const buttonStyle = { padding: "10px 16px", borderRadius: 8, border: "none", background: "#4f8ef7", color: "white", cursor: "pointer", fontSize: "0.9rem", marginTop: 8 };
+  const adminLogin = () => {
+    setAdminError("");
+    socket.emit(
+      "admin_login",
+      { user: adminUser, pass: adminPass },
+      (res) => {
+        if (!res.ok) return setAdminError(res.error);
+        setRole("admin"); // успішний вхід
+      }
+    );
+  };
+
+  const containerStyle = {
+    padding: 16,
+    margin: "0 auto",
+    maxWidth: 700,
+    fontFamily: "Inter, sans-serif",
+  };
+  const buttonStyle = {
+    padding: "10px 16px",
+    borderRadius: 8,
+    border: "none",
+    background: "#4f8ef7",
+    color: "white",
+    cursor: "pointer",
+    fontSize: "0.9rem",
+    marginTop: 8,
+  };
 
   // --- Форма для входу як адмін ---
   if (isAdminLogin && !role) {
     return (
       <div style={containerStyle}>
         <h2>Вхід для адміністратора</h2>
-        <input placeholder="Логін" value={adminUser} onChange={e => setAdminUser(e.target.value)} style={{ padding: 8, borderRadius: 6, width: "100%", maxWidth: 300, marginBottom: 8 }} />
-        <input type="password" placeholder="Пароль" value={adminPass} onChange={e => setAdminPass(e.target.value)} style={{ padding: 8, borderRadius: 6, width: "100%", maxWidth: 300, marginBottom: 8 }} />
+        <input
+          placeholder="Логін"
+          value={adminUser}
+          onChange={(e) => setAdminUser(e.target.value)}
+          style={{
+            padding: 8,
+            borderRadius: 6,
+            width: "100%",
+            maxWidth: 300,
+            marginBottom: 8,
+          }}
+        />
+        <input
+          type="password"
+          placeholder="Пароль"
+          value={adminPass}
+          onChange={(e) => setAdminPass(e.target.value)}
+          style={{
+            padding: 8,
+            borderRadius: 6,
+            width: "100%",
+            maxWidth: 300,
+            marginBottom: 8,
+          }}
+        />
         <br />
-        <button style={buttonStyle} onClick={() => {
-          socket.emit("admin_login", { user: adminUser, pass: adminPass }, (res) => {
-            if (!res.ok) return alert(res.error);
-            setRole("admin");
-          });
-        }}>Увійти</button>
+        <button style={buttonStyle} onClick={adminLogin}>
+          Увійти
+        </button>
+        {adminError && <p style={{ color: "red" }}>{adminError}</p>}
       </div>
     );
   }
@@ -95,16 +143,41 @@ export default function App() {
     return (
       <div style={{ ...containerStyle, textAlign: "center" }}>
         <h2>Реєстрація гравця</h2>
-        <input placeholder="Ваше ім’я" value={name} onChange={(e) => setName(e.target.value)} style={{ padding: 10, borderRadius: 8, border: "1px solid #ccc", width: "80%", maxWidth: 300, marginBottom: 8 }} />
+        <input
+          placeholder="Ваше ім’я"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          style={{
+            padding: 10,
+            borderRadius: 8,
+            border: "1px solid #ccc",
+            width: "80%",
+            maxWidth: 300,
+            marginBottom: 8,
+          }}
+        />
         <br />
-        <select value={group} onChange={(e) => setGroup(Number(e.target.value))} style={{ padding: 8, borderRadius: 6, marginBottom: 12 }}>
+        <select
+          value={group}
+          onChange={(e) => setGroup(Number(e.target.value))}
+          style={{ padding: 8, borderRadius: 6, marginBottom: 12 }}
+        >
           {Array.from({ length: groupCount }, (_, i) => (
-            <option key={i + 1} value={i + 1}>Група {i + 1}</option>
+            <option key={i + 1} value={i + 1}>
+              Група {i + 1}
+            </option>
           ))}
         </select>
         <br />
-        <button style={buttonStyle} onClick={register}>Увійти</button>
-        <button style={{ ...buttonStyle, background: "#222" }} onClick={() => setIsAdminLogin(true)}>Вхід для Адміна</button>
+        <button style={buttonStyle} onClick={register}>
+          Увійти
+        </button>
+        <button
+          style={{ ...buttonStyle, background: "#222" }}
+          onClick={() => setIsAdminLogin(true)}
+        >
+          Вхід для Адміна
+        </button>
       </div>
     );
   }
@@ -115,13 +188,23 @@ export default function App() {
       <div style={containerStyle}>
         <h2>Адмін-панель</h2>
         <p>Встановіть кількість груп (1–10):</p>
-        <input type="number" min="1" max="10" value={groupCount} onChange={e => setGroupCount(Number(e.target.value))} style={{ padding: 8, borderRadius: 6, width: 80 }} />
-        <button style={buttonStyle} onClick={setGroupsAdmin}>Зберегти</button>
+        <input
+          type="number"
+          min="1"
+          max="10"
+          value={groupCount}
+          onChange={(e) => setGroupCount(Number(e.target.value))}
+          style={{ padding: 8, borderRadius: 6, width: 80 }}
+        />
+        <button style={buttonStyle} onClick={setGroupsAdmin}>
+          Зберегти
+        </button>
         <p>Поточна кількість груп: {groupCount}</p>
       </div>
     );
   }
 
+  // --- Інтерфейс гравця ---
   return (
     <div style={containerStyle}>
       <h2>👋 Вітаємо, {name}! Ваша роль: {role}</h2>

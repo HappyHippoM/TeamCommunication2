@@ -1,43 +1,35 @@
 import React, { useEffect, useState } from "react";
 import { io } from "socket.io-client";
 
-const SERVER = import.meta.env.VITE_SERVER || "https://teamcommunicationgame.onrender.com";
-const socket = io(SERVER, { autoConnect: false });
+const SERVER =
+  import.meta.env.VITE_SERVER || "https://teamcommunicationgame.onrender.com";
+const socket = io(SERVER);
 
-const ROLE_IMAGES = {
-  A: "/cards/A.jpeg",
-  B: "/cards/B.jpeg",
-  C: "/cards/C.jpeg",
-  D: "/cards/D.jpeg",
-  E: "/cards/E.jpeg",
-  F: "/cards/F.jpeg",
-};
+const ROLES = ["A", "B", "C", "D", "E", "F"];
 
 export default function App() {
   const [connected, setConnected] = useState(false);
   const [name, setName] = useState("");
   const [role, setRole] = useState("");
   const [group, setGroup] = useState(1);
-  const [groupCount, setGroupCount] = useState(parseInt(import.meta.env.VITE_GROUPS || 1));
-  const [card, setCard] = useState("");
+  const [groupCount, setGroupCount] = useState(
+    Number(import.meta.env.VITE_GROUPS) || 1
+  );
   const [messages, setMessages] = useState({});
   const [reply, setReply] = useState({});
   const [guess, setGuess] = useState("");
 
   useEffect(() => {
-    socket.connect();
     socket.on("connect", () => setConnected(true));
     socket.on("disconnect", () => setConnected(false));
 
-    socket.on("card", ({ role, card }) => {
-      setRole(role);
-      setCard(card);
-    });
+    socket.on("group_count", (count) => setGroupCount(count));
+    socket.on("card", ({ role }) => setRole(role));
 
-    socket.on("private_message", ({ from, name: fromName, text }) => {
+    socket.on("private_message", ({ from, name, text }) => {
       setMessages((m) => ({
         ...m,
-        [from]: [...(m[from] || []), { fromName, text }],
+        [from]: [...(m[from] || []), { from, name, text }],
       }));
     });
 
@@ -45,7 +37,7 @@ export default function App() {
   }, []);
 
   const register = () => {
-    if (!name.trim()) return alert("Введіть ім’я");
+    if (!name.trim()) return alert("Введіть ім'я");
     socket.emit("register", { name, group }, (res) => {
       if (!res.ok) return alert(res.error);
       setRole(res.role);
@@ -59,14 +51,13 @@ export default function App() {
       if (!res.ok) return alert(res.error);
       setMessages((m) => ({
         ...m,
-        [toRole]: [...(m[toRole] || []), { fromName: name, text }],
+        [toRole]: [...(m[toRole] || []), { from: "me", name, text }],
       }));
       setReply((r) => ({ ...r, [toRole]: "" }));
     });
   };
 
   const submitGuess = () => {
-    if (!guess.trim()) return alert("Введіть відповідь");
     socket.emit("submit_answer", { answer: guess }, (res) => {
       if (!res.ok) alert(res.error);
       else alert("Відповідь відправлена!");
@@ -80,32 +71,41 @@ export default function App() {
     fontFamily: "Inter, sans-serif",
   };
 
-  const inputStyle = {
-    width: "100%",
-    padding: 8,
-    borderRadius: 6,
-    border: "1px solid #ccc",
-    marginBottom: 8,
-  };
-
   const buttonStyle = {
-    padding: "8px 12px",
-    borderRadius: 6,
+    padding: "10px 16px",
+    borderRadius: 8,
     border: "none",
     background: "#4f8ef7",
-    color: "#fff",
+    color: "white",
     cursor: "pointer",
-    marginTop: 4,
+    fontSize: "0.9rem",
+    marginTop: 8,
   };
 
-  // --- Форма реєстрації ---
+  // --- Форма реєстрації гравців ---
   if (!role) {
     return (
       <div style={{ ...containerStyle, textAlign: "center" }}>
         <h2>Реєстрація гравця</h2>
-        <input placeholder="Ваше ім’я" value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} />
+        <input
+          placeholder="Ваше ім’я"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          style={{
+            padding: 10,
+            borderRadius: 8,
+            border: "1px solid #ccc",
+            width: "80%",
+            maxWidth: 300,
+            marginBottom: 8,
+          }}
+        />
         <br />
-        <select value={group} onChange={(e) => setGroup(Number(e.target.value))} style={{ padding: 8, borderRadius: 6, marginBottom: 12 }}>
+        <select
+          value={group}
+          onChange={(e) => setGroup(Number(e.target.value))}
+          style={{ padding: 8, borderRadius: 6, marginBottom: 12 }}
+        >
           {Array.from({ length: groupCount }, (_, i) => (
             <option key={i + 1} value={i + 1}>
               Група {i + 1}
@@ -113,7 +113,9 @@ export default function App() {
           ))}
         </select>
         <br />
-        <button style={buttonStyle} onClick={register}>Увійти</button>
+        <button style={buttonStyle} onClick={register}>
+          Увійти
+        </button>
       </div>
     );
   }
@@ -123,58 +125,74 @@ export default function App() {
     <div style={containerStyle}>
       <h2>👋 Вітаємо, {name}! Ваша роль: {role}</h2>
       <p>Вибрана група: {group}</p>
-      <img src={ROLE_IMAGES[role]} alt={`Card ${role}`} style={{ maxWidth: "100%", marginBottom: 16 }} />
 
-      {role !== "B" && (
+      <div style={{ margin: "20px 0" }}>
+        <img
+          src={`/cards/${role}.jpeg`}
+          alt={`Картка ${role}`}
+          style={{ width: 150, height: 150, borderRadius: 8 }}
+        />
+      </div>
+
+      {role !== "B" ? (
         <div>
           <h3>Повідомлення до B</h3>
-          <div style={{ border: "1px solid #ccc", padding: 8, maxHeight: 150, overflowY: "auto" }}>
+          <div
+            style={{
+              border: "1px solid #ccc",
+              padding: 10,
+              minHeight: 60,
+              marginBottom: 8,
+            }}
+          >
             {(messages["B"] || []).map((m, i) => (
-              <div key={i} style={{ fontSize: "0.85rem", marginBottom: 2 }}>
-                <strong>{m.fromName}:</strong> {m.text}
+              <div key={i}>
+                <b>{m.name}:</b> {m.text}
               </div>
             ))}
           </div>
           <textarea
-            style={{ ...inputStyle, height: 60 }}
-            placeholder="Ваше повідомлення"
             value={reply["B"] || ""}
             onChange={(e) => setReply({ ...reply, B: e.target.value })}
+            rows={3}
+            style={{ width: "100%", padding: 6, borderRadius: 6 }}
           />
-          <button style={buttonStyle} onClick={() => sendMessage("B")}>Надіслати B</button>
+          <button style={buttonStyle} onClick={() => sendMessage("B")}>
+            Надіслати B
+          </button>
         </div>
-      )}
-
-      {role === "B" && (
+      ) : (
         <div>
-          <h3>Повідомлення від усіх гравців</h3>
-          {["A", "C", "D", "E", "F"].map((r) => (
-            <div key={r} style={{ border: "1px solid #ccc", marginTop: 8, padding: 6 }}>
+          <h3>Вхідні повідомлення від інших</h3>
+          {ROLES.filter((r) => r !== "B").map((r) => (
+            <div
+              key={r}
+              style={{
+                border: "1px solid #ccc",
+                marginTop: 8,
+                padding: 8,
+                borderRadius: 6,
+              }}
+            >
               <strong>{r}</strong>
-              <div style={{ maxHeight: 120, overflowY: "auto", fontSize: "0.85rem" }}>
+              <div>
                 {(messages[r] || []).map((m, i) => (
-                  <div key={i} style={{ marginBottom: 2 }}>
-                    <strong>{m.fromName}:</strong> {m.text}
+                  <div key={i}>
+                    <b>{m.name}:</b> {m.text}
                   </div>
                 ))}
               </div>
               <textarea
-                style={{ ...inputStyle, height: 60 }}
-                placeholder={`Відповідь ${r}`}
+                rows={3}
                 value={reply[r] || ""}
                 onChange={(e) => setReply({ ...reply, [r]: e.target.value })}
+                style={{ width: "100%", padding: 6, borderRadius: 6 }}
               />
-              <button style={buttonStyle} onClick={() => sendMessage(r)}>Надіслати</button>
+              <button style={buttonStyle} onClick={() => sendMessage(r)}>
+                Надіслати
+              </button>
             </div>
           ))}
-        </div>
-      )}
-
-      {role === "C" && (
-        <div style={{ marginTop: 16 }}>
-          <h3>Відправити остаточну відповідь</h3>
-          <input style={inputStyle} placeholder="Спільна фігура" value={guess} onChange={(e) => setGuess(e.target.value)} />
-          <button style={buttonStyle} onClick={submitGuess}>Надіслати</button>
         </div>
       )}
     </div>

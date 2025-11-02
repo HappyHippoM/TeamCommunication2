@@ -36,7 +36,7 @@ io.on("connection", (socket) => {
   console.log("🔗 Нове підключення:", socket.id);
 
   socket.on("admin_login", ({ user, pass }, callback) => {
-    if (user === ADMIN_CREDENTIALS.user && pass === ADMIN_CREDENTIALS.pass) {
+    if (user === process.env.ADMIN_USER && pass === process.env.ADMIN_PASS) {
       callback({ ok: true });
     } else {
       callback({ ok: false, error: "Невірний логін або пароль" });

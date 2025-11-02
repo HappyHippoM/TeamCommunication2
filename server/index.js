@@ -1,22 +1,28 @@
 import express from "express";
 import http from "http";
 import { Server } from "socket.io";
-import cors from "cors";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 const app = express();
 const server = http.createServer(app);
 
-app.use(cors());
-
+const CLIENT_URL = process.env.VITE_CLIENT_URL || "https://team-communication2.vercel.app";
 const io = new Server(server, {
   cors: {
-    origin: "*", // Для тесту, можна обмежити домен
+    origin: CLIENT_URL,
     methods: ["GET", "POST"],
+    credentials: true,
   },
 });
 
+// Ролі гравців
 const ROLES = ["A", "B", "C", "D", "E", "F"];
-const playerData = {}; // { socketId: { name, role, group } }
+// Дані гравців: { socketId: { name, role, group } }
+const playerData = {};
+// Кількість груп
+const GROUP_COUNT = parseInt(process.env.VITE_GROUP_COUNT) || 1;
 
 function assignRole(group) {
   const assignedRoles = Object.values(playerData)
@@ -38,19 +44,32 @@ io.on("connection", (socket) => {
   console.log("🔗 Нове підключення:", socket.id);
 
   socket.on("register", ({ name, group }, callback) => {
+    if (!group || group < 1 || group > GROUP_COUNT) group = 1;
     const role = assignRole(group);
-    if (!role) return callback({ ok: false, error: "Усі ролі зайняті в цій групі" });
+    if (!role) return callback({ ok: false, error: "Усі ролі зайняті у цій групі" });
+
     playerData[socket.id] = { name, role, group };
     console.log(`👤 ${name} отримав роль ${role} у групі ${group}`);
 
-    socket.emit("card", { role, group });
-    callback({ ok: true, role, group, name });
+    socket.emit("card", { role });
+    callback({ ok: true, role, name, group });
+
+    // Оновлюємо список гравців для цієї групи
+    io.emit(
+      "players",
+      Object.values(playerData).map((p) => ({
+        name: p.name,
+        role: p.role,
+        group: p.group,
+      }))
+    );
   });
 
   socket.on("send_message", ({ toRole, text }, callback) => {
     const from = playerData[socket.id];
     if (!from) return callback({ ok: false, error: "Неавторизований" });
 
+    // Дозвіл відправки: B -> всі, інші -> B
     let allowed = false;
     if (from.role === "B") {
       allowed = ROLES.includes(toRole) && toRole !== "B";
@@ -58,12 +77,10 @@ io.on("connection", (socket) => {
       allowed = toRole === "B";
     }
 
-    if (!allowed)
-      return callback({ ok: false, error: "Цей напрямок заборонений" });
+    if (!allowed) return callback({ ok: false, error: "Цей напрямок заборонений" });
 
     const toSocketId = getSocketByRole(toRole, from.group);
-    if (!toSocketId)
-      return callback({ ok: false, error: `Гравець ${toRole} не знайдений у групі` });
+    if (!toSocketId) return callback({ ok: false, error: `Гравець ${toRole} не знайдений у вашій групі` });
 
     io.to(toSocketId).emit("private_message", {
       from: from.role,
@@ -77,8 +94,8 @@ io.on("connection", (socket) => {
   socket.on("submit_answer", ({ answer }, callback) => {
     const from = playerData[socket.id];
     if (from?.role === "C") {
-      io.to(socket.id).emit("game_result", {
-        message: `💡 Ви надіслали відповідь: ${answer}`,
+      io.emit("game_result", {
+        message: `💡 Гравець ${from.name} (${from.role}) у групі ${from.group} надіслав відповідь: ${answer}`,
       });
       callback({ ok: true });
     } else {
@@ -89,10 +106,12 @@ io.on("connection", (socket) => {
   socket.on("disconnect", () => {
     console.log("❌ Відключився:", socket.id);
     delete playerData[socket.id];
+    io.emit(
+      "players",
+      Object.values(playerData).map((p) => ({ name: p.name, role: p.role, group: p.group }))
+    );
   });
 });
 
 const PORT = process.env.PORT || 4000;
-server.listen(PORT, () => {
-  console.log(`🚀 Сервер запущено на порті ${PORT}`);
-});
+server.listen(PORT, () => console.log(`🚀 Сервер запущено на порті ${PORT}`));

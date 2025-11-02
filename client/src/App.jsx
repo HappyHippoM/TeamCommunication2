@@ -1,30 +1,29 @@
 import React, { useEffect, useState } from "react";
 import { io } from "socket.io-client";
 
-const SERVER =
-  import.meta.env.VITE_SERVER || "https://teamcommunicationgame.onrender.com";
+const SERVER = import.meta.env.VITE_SERVER || "http://localhost:4000";
+const GROUP_COUNT = parseInt(import.meta.env.VITE_GROUP_COUNT) || 1;
+
+const CARD_IMAGES = {
+  A: "/cards/A.jpg",
+  B: "/cards/B.jpg",
+  C: "/cards/C.jpg",
+  D: "/cards/D.jpg",
+  E: "/cards/E.jpg",
+  F: "/cards/F.jpg",
+};
+
 const socket = io(SERVER);
 
 export default function App() {
-  const [connected, setConnected] = useState(false);
   const [name, setName] = useState("");
   const [role, setRole] = useState("");
   const [group, setGroup] = useState(1);
-  const [groupCount, setGroupCount] = useState(1);
   const [messages, setMessages] = useState({});
   const [reply, setReply] = useState({});
   const [guess, setGuess] = useState("");
-  const [isAdminLogin, setIsAdminLogin] = useState(false);
-  const [adminUser, setAdminUser] = useState("");
-  const [adminPass, setAdminPass] = useState("");
-  const [adminError, setAdminError] = useState("");
 
   useEffect(() => {
-    socket.on("connect", () => setConnected(true));
-    socket.on("disconnect", () => setConnected(false));
-
-    socket.on("group_count", (count) => setGroupCount(count));
-    socket.on("card", ({ role }) => setRole(role));
     socket.on("private_message", ({ from, name, text }) => {
       setMessages((m) => ({
         ...m,
@@ -33,12 +32,10 @@ export default function App() {
     });
 
     socket.on("game_result", ({ message }) => alert(message));
-
-    return () => socket.disconnect();
   }, []);
 
   const register = () => {
-    if (name.trim() === "") return alert("Введіть ім'я");
+    if (!name.trim()) return alert("Введіть ім'я");
     socket.emit("register", { name, group }, (res) => {
       if (!res.ok) return alert(res.error);
       setRole(res.role);
@@ -65,153 +62,132 @@ export default function App() {
     });
   };
 
-  const setGroupsAdmin = () => {
-    const count = parseInt(groupCount);
-    if (!count || count < 1 || count > 10) return alert("1–10 груп");
-    socket.emit("admin_set_groups", count);
-    alert("Налаштування груп збережено!");
-  };
-
-  const adminLogin = () => {
-    setAdminError("");
-    socket.emit(
-      "admin_login",
-      { user: adminUser, pass: adminPass },
-      (res) => {
-        if (!res.ok) return setAdminError(res.error);
-        setRole("admin"); // успішний вхід
-      }
-    );
-  };
-
-  const containerStyle = {
-    padding: 16,
-    margin: "0 auto",
-    maxWidth: 700,
-    fontFamily: "Inter, sans-serif",
-  };
-  const buttonStyle = {
-    padding: "10px 16px",
-    borderRadius: 8,
-    border: "none",
-    background: "#4f8ef7",
-    color: "white",
-    cursor: "pointer",
-    fontSize: "0.9rem",
-    marginTop: 8,
-  };
-
-  // --- Форма для входу як адмін ---
-  if (isAdminLogin && !role) {
-    return (
-      <div style={containerStyle}>
-        <h2>Вхід для адміністратора</h2>
-        <input
-          placeholder="Логін"
-          value={adminUser}
-          onChange={(e) => setAdminUser(e.target.value)}
-          style={{
-            padding: 8,
-            borderRadius: 6,
-            width: "100%",
-            maxWidth: 300,
-            marginBottom: 8,
-          }}
-        />
-        <input
-          type="password"
-          placeholder="Пароль"
-          value={adminPass}
-          onChange={(e) => setAdminPass(e.target.value)}
-          style={{
-            padding: 8,
-            borderRadius: 6,
-            width: "100%",
-            maxWidth: 300,
-            marginBottom: 8,
-          }}
-        />
-        <br />
-        <button style={buttonStyle} onClick={adminLogin}>
-          Увійти
-        </button>
-        {adminError && <p style={{ color: "red" }}>{adminError}</p>}
-      </div>
-    );
-  }
-
-  // --- Форма реєстрації гравців ---
   if (!role) {
     return (
-      <div style={{ ...containerStyle, textAlign: "center" }}>
+      <div style={{ padding: 20, textAlign: "center" }}>
         <h2>Реєстрація гравця</h2>
         <input
           placeholder="Ваше ім’я"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          style={{
-            padding: 10,
-            borderRadius: 8,
-            border: "1px solid #ccc",
-            width: "80%",
-            maxWidth: 300,
-            marginBottom: 8,
-          }}
+          style={{ padding: 10, borderRadius: 6, width: "80%", maxWidth: 300 }}
         />
         <br />
         <select
           value={group}
           onChange={(e) => setGroup(Number(e.target.value))}
-          style={{ padding: 8, borderRadius: 6, marginBottom: 12 }}
+          style={{ padding: 8, borderRadius: 6, marginTop: 12 }}
         >
-          {Array.from({ length: groupCount }, (_, i) => (
+          {Array.from({ length: GROUP_COUNT }, (_, i) => (
             <option key={i + 1} value={i + 1}>
               Група {i + 1}
             </option>
           ))}
         </select>
         <br />
-        <button style={buttonStyle} onClick={register}>
+        <button
+          onClick={register}
+          style={{
+            marginTop: 12,
+            padding: "10px 16px",
+            borderRadius: 6,
+            background: "#4f8ef7",
+            color: "#fff",
+            border: "none",
+            cursor: "pointer",
+          }}
+        >
           Увійти
         </button>
-        <button
-          style={{ ...buttonStyle, background: "#222" }}
-          onClick={() => setIsAdminLogin(true)}
-        >
-          Вхід для Адміна
-        </button>
       </div>
     );
   }
 
-  // --- Інтерфейс адміністратора ---
-  if (role === "admin") {
-    return (
-      <div style={containerStyle}>
-        <h2>Адмін-панель</h2>
-        <p>Встановіть кількість груп (1–10):</p>
-        <input
-          type="number"
-          min="1"
-          max="10"
-          value={groupCount}
-          onChange={(e) => setGroupCount(Number(e.target.value))}
-          style={{ padding: 8, borderRadius: 6, width: 80 }}
-        />
-        <button style={buttonStyle} onClick={setGroupsAdmin}>
-          Зберегти
-        </button>
-        <p>Поточна кількість груп: {groupCount}</p>
-      </div>
-    );
-  }
-
-  // --- Інтерфейс гравця ---
   return (
-    <div style={containerStyle}>
-      <h2>👋 Вітаємо, {name}! Ваша роль: {role}</h2>
-      <p>Вибрана група: {group}</p>
-      {/* Тут можна вставити картку гравця */}
+    <div style={{ padding: 20 }}>
+      <h2>👋 Вітаємо, {name}!</h2>
+      <p>Ваша група: {group}</p>
+      <p>Ваша роль: {role}</p>
+      <div style={{ marginTop: 20 }}>
+        <img
+          src={CARD_IMAGES[role]}
+          alt={`Card ${role}`}
+          style={{ maxWidth: "300px", width: "100%", borderRadius: 8 }}
+        />
+      </div>
+
+      {/* Повідомлення */}
+      {role !== "B" ? (
+        <div style={{ marginTop: 20 }}>
+          <h3>Повідомлення до B</h3>
+          <div style={{ minHeight: 80, border: "1px solid #ccc", padding: 8 }}>
+            {(messages["B"] || []).map((m, i) => (
+              <div key={i}>
+                <strong>{m.name}:</strong> {m.text}
+              </div>
+            ))}
+          </div>
+          <textarea
+            value={reply["B"] || ""}
+            onChange={(e) => setReply({ ...reply, B: e.target.value })}
+            rows={3}
+            style={{ width: "100%", marginTop: 8 }}
+          />
+          <button onClick={() => sendMessage("B")} style={{ marginTop: 8 }}>
+            Надіслати B
+          </button>
+        </div>
+      ) : (
+        <div style={{ marginTop: 20 }}>
+          <h3>Вхідні повідомлення від усіх</h3>
+          {["A", "C", "D", "E", "F"].map((r) => (
+            <div
+              key={r}
+              style={{
+                border: "1px solid #ccc",
+                marginTop: 8,
+                padding: 8,
+                borderRadius: 6,
+              }}
+            >
+              <strong>{r}</strong>
+              <div>
+                {(messages[r] || []).map((m, i) => (
+                  <div key={i}>
+                    <strong>{m.name}:</strong> {m.text}
+                  </div>
+                ))}
+              </div>
+              <textarea
+                placeholder={`Відповідь ${r}`}
+                value={reply[r] || ""}
+                onChange={(e) => setReply({ ...reply, [r]: e.target.value })}
+                rows={3}
+                style={{ width: "100%", marginTop: 4 }}
+              />
+              <button onClick={() => sendMessage(r)} style={{ marginTop: 4 }}>
+                Надіслати
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Відправка остаточної відповіді тільки для C */}
+      {role === "C" && (
+        <div style={{ marginTop: 20 }}>
+          <h3>Відправити остаточну відповідь</h3>
+          <input
+            placeholder="Спільна фігура"
+            value={guess}
+            onChange={(e) => setGuess(e.target.value)}
+            style={{ padding: 8, width: "100%", marginTop: 4 }}
+          />
+          <button onClick={submitGuess} style={{ marginTop: 8 }}>
+            Надіслати відповідь
+          </button>
+        </div>
+      )}
     </div>
   );
 }

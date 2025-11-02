@@ -1,40 +1,43 @@
-import React, { useEffect, useState } from 'react';
-import { io } from 'socket.io-client';
+import React, { useEffect, useState } from "react";
+import { io } from "socket.io-client";
 
-const SERVER = import.meta.env.VITE_SERVER || 'https://teamcommunicationgame.onrender.com/';
+const SERVER =
+  import.meta.env.VITE_SERVER || "https://teamcommunicationgame.onrender.com";
 const socket = io(SERVER);
 
 export default function App() {
   const [connected, setConnected] = useState(false);
-  const [name, setName] = useState('');
-  const [role, setRole] = useState('');
+  const [name, setName] = useState("");
+  const [role, setRole] = useState("");
   const [players, setPlayers] = useState([]);
   const [messages, setMessages] = useState({});
   const [reply, setReply] = useState({});
+  const [guess, setGuess] = useState("");
 
   useEffect(() => {
-    socket.on('connect', () => setConnected(true));
-    socket.on('disconnect', () => setConnected(false));
+    socket.on("connect", () => setConnected(true));
+    socket.on("disconnect", () => setConnected(false));
 
-    socket.on('role_assigned', (assignedRole) => {
-      setRole(assignedRole);
+    socket.on("card", ({ role }) => {
+      setRole(role);
     });
 
-    socket.on('players', setPlayers);
+    socket.on("players", (list) => {
+      setPlayers(list);
+    });
 
-    socket.on('private_message', ({ from, text }) => {
-      setMessages(m => ({
+    socket.on("private_message", ({ from, name, text }) => {
+      setMessages((m) => ({
         ...m,
-        [from]: [...(m[from] || []), `${from}: ${text}`]
+        [from]: [...(m[from] || []), `${name} (${from}): ${text}`],
       }));
     });
 
-    socket.on('game_result', ({ message }) => alert(message));
+    socket.on("game_result", ({ message }) => alert(message));
   }, []);
 
   const register = () => {
-    if (!name) return;
-    socket.emit('register', { name }, res => {
+    socket.emit("register", { name }, (res) => {
       if (!res.ok) return alert(res.error);
       setRole(res.role);
     });
@@ -43,70 +46,160 @@ export default function App() {
   const sendMessage = (toRole) => {
     const text = reply[toRole];
     if (!text) return;
-    socket.emit('send_message', { toRole, text }, res => {
+    socket.emit("send_message", { toRole, text }, (res) => {
       if (!res.ok) return alert(res.error);
-      setMessages(m => ({
+      setMessages((m) => ({
         ...m,
-        [toRole]: [...(m[toRole] || []), `You: ${text}`]
+        [toRole]: [...(m[toRole] || []), `Ви: ${text}`],
       }));
-      setReply(r => ({ ...r, [toRole]: '' }));
+      setReply((r) => ({ ...r, [toRole]: "" }));
     });
   };
 
-  if (!role) {
+  const submitGuess = () => {
+    socket.emit("submit_answer", { answer: guess }, (res) => {
+      if (!res.ok) alert(res.error);
+      else alert("Відповідь відправлена!");
+    });
+  };
+
+  const getCardImage = () => {
+    if (!role) return "";
+    return `/cards/${role}.jpg`;
+  };
+
+  if (!role)
     return (
       <div style={{ padding: 20 }}>
         <h2>Реєстрація</h2>
-        <input placeholder='Ваше ім’я' value={name} onChange={e => setName(e.target.value)} />
+        <input
+          placeholder="Ваше ім’я"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
         <button onClick={register}>Увійти</button>
       </div>
     );
-  }
-
-  // Шлях до картки у папці public/cards/
-  const cardSrc = `/cards/${role}.jpg`;
 
   return (
-    <div style={{ padding: 20 }}>
-      <h2>Ваша роль: {role}</h2>
-
-      {/* Відображення картки */}
-      <div>
-        <h3>Ваша картка:</h3>
-        <img src={cardSrc} alt={`Картка ${role}`} style={{ width: "300px", height: "auto" }} />
+    <div style={{ padding: 20, maxWidth: 700, margin: "0 auto" }}>
+      <h2>
+        Вітаємо, {name}! Ваша роль: <b>{role}</b>
+      </h2>
+      <div style={{ marginBottom: 20 }}>
+        <img
+          src={getCardImage()}
+          alt={`Картка ${role}`}
+          style={{
+            maxWidth: "100%",
+            borderRadius: 10,
+            boxShadow: "0 0 10px rgba(0,0,0,0.2)",
+          }}
+        />
       </div>
 
-      {/* Повідомлення */}
-      <div style={{ marginTop: 20 }}>
-        <h3>Повідомлення</h3>
-        {role === 'B' ? (
-          // B бачить всіх і може писати всім
-          ['A','C','D','E','F'].map(r => (
-            <div key={r} style={{ border: '1px solid #ccc', marginTop: 8, padding: 8 }}>
-              <strong>{r}</strong>
-              <div>{(messages[r] || []).map((m,i) => <div key={i}>{m}</div>)}</div>
-              <input
-                placeholder={`Відповідь ${r}`}
-                value={reply[r] || ''}
-                onChange={e => setReply({ ...reply, [r]: e.target.value })}
-              />
-              <button onClick={() => sendMessage(r)}>Надіслати</button>
-            </div>
-          ))
-        ) : (
-          // Інші пишуть лише B
-          <div style={{ border: '1px solid #ccc', marginTop: 8, padding: 8 }}>
-            <strong>Повідомлення до B</strong>
-            <div>{(messages['B'] || []).map((m,i) => <div key={i}>{m}</div>)}</div>
-            <input
-              placeholder="Ваше повідомлення"
-              value={reply['B'] || ''}
-              onChange={e => setReply({ ...reply, B: e.target.value })}
-            />
-            <button onClick={() => sendMessage('B')}>Надіслати B</button>
+      {role !== "B" ? (
+        // Учасники A, C, D, E, F — можуть писати тільки до B
+        <div style={{ marginTop: 20 }}>
+          <h3>Повідомлення до гравця B</h3>
+          <div
+            style={{
+              border: "1px solid #ccc",
+              padding: 10,
+              minHeight: 80,
+              maxHeight: 200,
+              overflowY: "auto",
+            }}
+          >
+            {(messages["B"] || []).map((m, i) => (
+              <div key={i}>{m}</div>
+            ))}
           </div>
-        )}
-      </div>
+          <textarea
+            placeholder="Ваше повідомлення"
+            rows={3}
+            style={{
+              width: "100%",
+              resize: "none",
+              overflowY: "auto",
+              whiteSpace: "pre-wrap",
+              wordWrap: "break-word",
+              marginTop: 6,
+            }}
+            value={reply["B"] || ""}
+            onChange={(e) =>
+              setReply({
+                ...reply,
+                B: e.target.value,
+              })
+            }
+          />
+          <button onClick={() => sendMessage("B")}>Надіслати B</button>
+        </div>
+      ) : (
+        // Гравець B бачить чати всіх інших
+        <div style={{ marginTop: 20 }}>
+          <h3>Вхідні повідомлення</h3>
+          {["A", "C", "D", "E", "F"].map((r) => (
+            <div
+              key={r}
+              style={{
+                border: "1px solid #ccc",
+                marginTop: 10,
+                padding: 8,
+                borderRadius: 8,
+              }}
+            >
+              <strong>{r}</strong>
+              <div
+                style={{
+                  maxHeight: 150,
+                  overflowY: "auto",
+                  marginTop: 4,
+                }}
+              >
+                {(messages[r] || []).map((m, i) => (
+                  <div key={i}>{m}</div>
+                ))}
+              </div>
+              <textarea
+                placeholder={`Відповідь ${r}`}
+                rows={3}
+                style={{
+                  width: "100%",
+                  resize: "none",
+                  overflowY: "auto",
+                  whiteSpace: "pre-wrap",
+                  wordWrap: "break-word",
+                  marginTop: 6,
+                }}
+                value={reply[r] || ""}
+                onChange={(e) =>
+                  setReply({
+                    ...reply,
+                    [r]: e.target.value,
+                  })
+                }
+              />
+              <button onClick={() => sendMessage(r)}>
+                Надіслати {r}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {role === "C" && (
+        <div style={{ marginTop: 20 }}>
+          <h3>Відправити остаточну відповідь</h3>
+          <input
+            placeholder="Спільна фігура"
+            value={guess}
+            onChange={(e) => setGuess(e.target.value)}
+          />
+          <button onClick={submitGuess}>Надіслати відповідь</button>
+        </div>
+      )}
     </div>
   );
 }

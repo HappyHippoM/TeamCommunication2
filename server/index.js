@@ -7,7 +7,7 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: "https://team-communication2.vercel.app", // твій Vercel-домен
+    origin: "https://team-communication2.vercel.app", // твій домен на Vercel
     methods: ["GET", "POST"],
     credentials: true,
   },
@@ -38,23 +38,22 @@ io.on("connection", (socket) => {
     if (!role) return callback({ ok: false, error: "Усі ролі зайняті" });
     playerData[socket.id] = { name, role };
     console.log(`👤 ${name} отримав роль ${role}`);
-    socket.emit("card", { role, card: [] }); // картка передається з клієнта
-    callback({ ok: true, role });
-    io.emit("players", Object.values(playerData));
+    socket.emit("card", { role, card: [] });
+    callback({ ok: true, role, name });
+    io.emit(
+      "players",
+      Object.values(playerData).map((p) => ({ name: p.name, role: p.role }))
+    );
   });
 
   socket.on("send_message", ({ toRole, text }, callback) => {
     const from = playerData[socket.id];
     if (!from) return callback({ ok: false, error: "Неавторизований" });
 
-    // логіка, хто кому може писати
     let allowed = false;
-
     if (from.role === "B") {
-      // B може писати всім
       allowed = ROLES.includes(toRole) && toRole !== "B";
     } else {
-      // решта можуть писати лише B
       allowed = toRole === "B";
     }
 
@@ -65,8 +64,10 @@ io.on("connection", (socket) => {
     if (!toSocketId)
       return callback({ ok: false, error: `Гравець ${toRole} не знайдений` });
 
+    // передаємо ім'я і роль відправника
     io.to(toSocketId).emit("private_message", {
       from: from.role,
+      name: from.name,
       text,
     });
 
@@ -76,7 +77,9 @@ io.on("connection", (socket) => {
   socket.on("submit_answer", ({ answer }, callback) => {
     const from = playerData[socket.id];
     if (from?.role === "C") {
-      io.emit("game_result", { message: `Гравець C надіслав відповідь: ${answer}` });
+      io.emit("game_result", {
+        message: `💡 Гравець ${from.name} (${from.role}) надіслав відповідь: ${answer}`,
+      });
       callback({ ok: true });
     } else {
       callback({ ok: false, error: "Лише C може відправити остаточну відповідь" });
@@ -86,7 +89,10 @@ io.on("connection", (socket) => {
   socket.on("disconnect", () => {
     console.log("❌ Відключився:", socket.id);
     delete playerData[socket.id];
-    io.emit("players", Object.values(playerData));
+    io.emit(
+      "players",
+      Object.values(playerData).map((p) => ({ name: p.name, role: p.role }))
+    );
   });
 });
 

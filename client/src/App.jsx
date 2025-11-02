@@ -9,6 +9,10 @@ export default function App() {
   const [name, setName] = useState("");
   const [group, setGroup] = useState(1);
   const [groupCount, setGroupCount] = useState(1);
+  const [messages, setMessages] = useState({});
+  const [reply, setReply] = useState({});
+  const [guess, setGuess] = useState("");
+  const [card, setCard] = useState([]);
   const [isAdminLogin, setIsAdminLogin] = useState(false);
   const [adminUser, setAdminUser] = useState("");
   const [adminPass, setAdminPass] = useState("");
@@ -16,6 +20,11 @@ export default function App() {
 
   useEffect(() => {
     socket.on("group_count", (count) => setGroupCount(count));
+    socket.on("card", ({ role, card }) => { setRole(role); setCard(card); });
+    socket.on("private_message", ({ from, name: senderName, text }) => {
+      setMessages((m) => ({ ...m, [from]: [...(m[from] || []), { from, name: senderName, text }] }));
+    });
+    socket.on("game_result", ({ message }) => alert(message));
   }, []);
 
   const register = () => {
@@ -23,6 +32,27 @@ export default function App() {
     socket.emit("register", { name, group }, (res) => {
       if (!res.ok) return alert(res.error);
       setRole(res.role);
+      setCard([`${res.role}.jpeg`]);
+    });
+  };
+
+  const sendMessage = (toRole) => {
+    const text = reply[toRole];
+    if (!text) return;
+    socket.emit("send_message", { toRole, text }, (res) => {
+      if (!res.ok) return alert(res.error);
+      setMessages((m) => ({
+        ...m,
+        [toRole]: [...(m[toRole] || []), { from: "me", name, text }]
+      }));
+      setReply((r) => ({ ...r, [toRole]: "" }));
+    });
+  };
+
+  const submitGuess = () => {
+    socket.emit("submit_answer", { answer: guess }, (res) => {
+      if (!res.ok) alert(res.error);
+      else alert("Відповідь відправлена!");
     });
   };
 
@@ -63,38 +93,4 @@ export default function App() {
     return (
       <div style={{ ...containerStyle, textAlign: "center" }}>
         <h2>Реєстрація гравця</h2>
-        <input placeholder="Ваше ім’я" value={name} onChange={(e) => setName(e.target.value)} style={{ padding: 10, borderRadius: 8, border: "1px solid #ccc", width: "80%", maxWidth: 300, marginBottom: 8 }} />
-        <br />
-        <select value={group} onChange={(e) => setGroup(Number(e.target.value))} style={{ padding: 8, borderRadius: 6, marginBottom: 12 }}>
-          {Array.from({ length: groupCount }, (_, i) => (
-            <option key={i + 1} value={i + 1}>Група {i + 1}</option>
-          ))}
-        </select>
-        <br />
-        <button style={buttonStyle} onClick={register}>Увійти</button>
-        <button style={{ ...buttonStyle, background: "#222" }} onClick={() => setIsAdminLogin(true)}>Вхід для Адміна</button>
-      </div>
-    );
-  }
-
-  // --- Інтерфейс адміна ---
-  if (role === "admin") {
-    return (
-      <div style={containerStyle}>
-        <h2>Адмін-панель</h2>
-        <p>Встановіть кількість груп (1–10):</p>
-        <input type="number" min="1" max="10" value={groupCount} onChange={(e) => setGroupCount(Number(e.target.value))} style={{ padding: 8, borderRadius: 6, width: 80 }} />
-        <button style={buttonStyle} onClick={setGroupsAdmin}>Зберегти</button>
-        <p>Поточна кількість груп: {groupCount}</p>
-      </div>
-    );
-  }
-
-  // --- Інтерфейс гравця ---
-  return (
-    <div style={containerStyle}>
-      <h2>👋 Вітаємо, {name}! Ваша роль: {role}</h2>
-      <p>Вибрана група: {group}</p>
-    </div>
-  );
-}
+        <input placeholder="Ваше ім’я" value={name} onChange={(e) => setName(e.target.value)} style={{ padding: 10, borderRadius: 8, border: "1px solid #ccc", width: "80%", max

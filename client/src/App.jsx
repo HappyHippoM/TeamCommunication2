@@ -63,12 +63,12 @@ export default function App() {
     return `/cards/${role}.jpg`;
   };
 
-  // --- стилі повідомлень ---
+  // стилі
   const chatContainerStyle = {
     border: "1px solid #ccc",
     borderRadius: 10,
     padding: 10,
-    minHeight: 120,
+    minHeight: 100,
     maxHeight: 250,
     overflowY: "auto",
     background: "#f8f9fa",
@@ -79,7 +79,7 @@ export default function App() {
     padding: "6px 10px",
     borderRadius: 10,
     marginBottom: 4,
-    maxWidth: "80%",
+    maxWidth: "75%",
     wordWrap: "break-word",
     fontSize: "0.9rem",
     lineHeight: "1.2rem",
@@ -88,63 +88,69 @@ export default function App() {
     alignSelf: isMine ? "flex-end" : "flex-start",
   });
 
+  // адаптивна стилізація контейнера
+  const containerStyle = {
+    padding: 16,
+    margin: "0 auto",
+    maxWidth: 700,
+    fontFamily: "Inter, sans-serif",
+  };
+
+  const buttonStyle = {
+    padding: "10px 16px",
+    borderRadius: 8,
+    border: "none",
+    background: "#4f8ef7",
+    color: "white",
+    cursor: "pointer",
+    fontSize: "0.9rem",
+  };
+
   if (!role)
     return (
-      <div style={{ padding: 20, textAlign: "center" }}>
+      <div style={{ ...containerStyle, textAlign: "center" }}>
         <h2>Реєстрація</h2>
         <input
           placeholder="Ваше ім’я"
           value={name}
           onChange={(e) => setName(e.target.value)}
           style={{
-            padding: "8px",
-            borderRadius: 6,
+            padding: "10px",
+            borderRadius: 8,
             border: "1px solid #ccc",
-            marginRight: 8,
+            width: "80%",
+            maxWidth: 300,
+            marginBottom: 12,
           }}
         />
-        <button
-          onClick={register}
-          style={{
-            padding: "8px 16px",
-            borderRadius: 6,
-            border: "none",
-            background: "#4f8ef7",
-            color: "white",
-            cursor: "pointer",
-          }}
-        >
+        <br />
+        <button style={buttonStyle} onClick={register}>
           Увійти
         </button>
       </div>
     );
 
   return (
-    <div
-      style={{
-        padding: 20,
-        maxWidth: 700,
-        margin: "0 auto",
-        fontFamily: "Inter, sans-serif",
-      }}
-    >
+    <div style={containerStyle}>
       <h2 style={{ textAlign: "center" }}>
         👋 Вітаємо, {name}! <br />
         Ваша роль: <b>{role}</b>
       </h2>
 
-      <div style={{ marginBottom: 20, textAlign: "center" }}>
+      <div style={{ textAlign: "center", marginBottom: 20 }}>
         <img
           src={getCardImage()}
           alt={`Картка ${role}`}
           style={{
-            maxWidth: "80%",
+            width: "100%",
+            maxWidth: 400,
             borderRadius: 12,
             boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
           }}
         />
       </div>
 
+      {/* Якщо роль не B */}
       {role !== "B" ? (
         <div>
           <h3>Чат з гравцем B</h3>
@@ -181,18 +187,7 @@ export default function App() {
             value={reply["B"] || ""}
             onChange={(e) => setReply({ ...reply, B: e.target.value })}
           />
-          <button
-            onClick={() => sendMessage("B")}
-            style={{
-              marginTop: 6,
-              padding: "8px 14px",
-              borderRadius: 6,
-              border: "none",
-              background: "#4f8ef7",
-              color: "#fff",
-              cursor: "pointer",
-            }}
-          >
+          <button style={buttonStyle} onClick={() => sendMessage("B")}>
             Надіслати
           </button>
         </div>
@@ -242,20 +237,11 @@ export default function App() {
                   fontSize: "0.9rem",
                 }}
                 value={reply[r] || ""}
-                onChange={(e) => setReply({ ...reply, [r]: e.target.value })}
+                onChange={(e) =>
+                  setReply({ ...reply, [r]: e.target.value })
+                }
               />
-              <button
-                onClick={() => sendMessage(r)}
-                style={{
-                  marginTop: 6,
-                  padding: "8px 14px",
-                  borderRadius: 6,
-                  border: "none",
-                  background: "#4f8ef7",
-                  color: "#fff",
-                  cursor: "pointer",
-                }}
-              >
+              <button style={buttonStyle} onClick={() => sendMessage(r)}>
                 Надіслати {r}
               </button>
             </div>
@@ -276,21 +262,11 @@ export default function App() {
               border: "1px solid #ccc",
               width: "100%",
               maxWidth: 300,
+              marginBottom: 8,
             }}
           />
-          <button
-            onClick={submitGuess}
-            style={{
-              marginTop: 6,
-              padding: "8px 14px",
-              borderRadius: 6,
-              border: "none",
-              background: "#4f8ef7",
-              color: "#fff",
-              cursor: "pointer",
-              marginLeft: 10,
-            }}
-          >
+          <br />
+          <button style={buttonStyle} onClick={submitGuess}>
             Надіслати відповідь
           </button>
         </div>

@@ -8,7 +8,9 @@ dotenv.config();
 const app = express();
 const server = http.createServer(app);
 
-const CLIENT_URL = process.env.VITE_CLIENT_URL || "https://team-communication2.vercel.app";
+const CLIENT_URL = process.env.VITE_CLIENT_URL || "http://localhost:5173";
+const PORT = process.env.PORT || 4000;
+
 const io = new Server(server, {
   cors: {
     origin: CLIENT_URL,
@@ -17,12 +19,10 @@ const io = new Server(server, {
   },
 });
 
-// Ролі гравців
+// --- Глобальні налаштування ---
 const ROLES = ["A", "B", "C", "D", "E", "F"];
-// Дані гравців: { socketId: { name, role, group } }
-const playerData = {};
-// Кількість груп
-const GROUP_COUNT = parseInt(process.env.VITE_GROUP_COUNT) || 1;
+let GROUP_COUNT = parseInt(process.env.GROUP_COUNT) || 1; // кількість груп
+const playerData = {}; // { socketId: { name, role, group } }
 
 function assignRole(group) {
   const assignedRoles = Object.values(playerData)
@@ -44,17 +44,19 @@ io.on("connection", (socket) => {
   console.log("🔗 Нове підключення:", socket.id);
 
   socket.on("register", ({ name, group }, callback) => {
-    if (!group || group < 1 || group > GROUP_COUNT) group = 1;
+    if (!group || group < 1 || group > GROUP_COUNT)
+      return callback({ ok: false, error: "Невірна група" });
+
     const role = assignRole(group);
-    if (!role) return callback({ ok: false, error: "Усі ролі зайняті у цій групі" });
+    if (!role) return callback({ ok: false, error: "Усі ролі зайняті" });
 
     playerData[socket.id] = { name, role, group };
-    console.log(`👤 ${name} отримав роль ${role} у групі ${group}`);
+    console.log(`👤 ${name} отримав роль ${role} в групі ${group}`);
 
-    socket.emit("card", { role });
+    socket.emit("card", { role, card: [] });
     callback({ ok: true, role, name, group });
 
-    // Оновлюємо список гравців для цієї групи
+    // Оновлюємо список гравців у цій групі
     io.emit(
       "players",
       Object.values(playerData).map((p) => ({
@@ -63,13 +65,15 @@ io.on("connection", (socket) => {
         group: p.group,
       }))
     );
+
+    // Надсилаємо поточну кількість груп всім клієнтам
+    io.emit("group_count", GROUP_COUNT);
   });
 
   socket.on("send_message", ({ toRole, text }, callback) => {
     const from = playerData[socket.id];
     if (!from) return callback({ ok: false, error: "Неавторизований" });
 
-    // Дозвіл відправки: B -> всі, інші -> B
     let allowed = false;
     if (from.role === "B") {
       allowed = ROLES.includes(toRole) && toRole !== "B";
@@ -77,10 +81,12 @@ io.on("connection", (socket) => {
       allowed = toRole === "B";
     }
 
-    if (!allowed) return callback({ ok: false, error: "Цей напрямок заборонений" });
+    if (!allowed)
+      return callback({ ok: false, error: "Цей напрямок заборонений" });
 
     const toSocketId = getSocketByRole(toRole, from.group);
-    if (!toSocketId) return callback({ ok: false, error: `Гравець ${toRole} не знайдений у вашій групі` });
+    if (!toSocketId)
+      return callback({ ok: false, error: `Гравець ${toRole} не знайдений` });
 
     io.to(toSocketId).emit("private_message", {
       from: from.role,
@@ -94,8 +100,8 @@ io.on("connection", (socket) => {
   socket.on("submit_answer", ({ answer }, callback) => {
     const from = playerData[socket.id];
     if (from?.role === "C") {
-      io.emit("game_result", {
-        message: `💡 Гравець ${from.name} (${from.role}) у групі ${from.group} надіслав відповідь: ${answer}`,
+      io.to(socket.id).emit("game_result", {
+        message: `💡 Ваша відповідь надіслана: ${answer}`,
       });
       callback({ ok: true });
     } else {
@@ -108,10 +114,15 @@ io.on("connection", (socket) => {
     delete playerData[socket.id];
     io.emit(
       "players",
-      Object.values(playerData).map((p) => ({ name: p.name, role: p.role, group: p.group }))
+      Object.values(playerData).map((p) => ({
+        name: p.name,
+        role: p.role,
+        group: p.group,
+      }))
     );
   });
 });
 
-const PORT = process.env.PORT || 4000;
-server.listen(PORT, () => console.log(`🚀 Сервер запущено на порті ${PORT}`));
+server.listen(PORT, () => {
+  console.log(`🚀 Сервер запущено на порті ${PORT}`);
+});
